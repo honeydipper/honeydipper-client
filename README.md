@@ -10,6 +10,10 @@ This script makes it easy to send a webhook request to Honeydipper, or wait for 
 
 Just download the script and place it somewhere in your `PATH`. The script requires `curl` and `jq`, make sure you have them installed.
 
+```bash
+curl -s https://raw.githubusercontent.com/honeydipper/honeydipper-client/v0.0.1/bin/hdclient.sh > hdclient.sh
+```
+
 ### Config
 
 Create a file named `honeydipper` under the directory `~/.config`, and put the url and tokens in the config files like below.
