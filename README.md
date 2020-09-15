@@ -50,6 +50,12 @@ $ HD_EVENT_ID=xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx hdwait
 ```
 If the `HD_EVENT_ID` is populated by your previous commands such as `hdwebhook`, you can just run `hdwait`.
 
+Once the workflow is complete, you can evaluate the environment variable `HD_SESSION_FAILURE_ERROR`. If it is a zero, then the workflow
+has completed successfully. If it is not zero, check the output of the command for more detailed information about the failure. The output is also saved
+in a file, whose name is in environment variable `HD_RETURN`.
+
+Optionally, you can suppress the verbose output by setting `HD_SILENT=1`, and you can still access the payload in the file pointed to by `$HD_RETURN`.
+
 ### List running events
 
 Again, source in the script, before you run the below command.
