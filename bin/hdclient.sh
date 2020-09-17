@@ -125,7 +125,7 @@ function hdwebhook() {
 
   local hook="$1"
   local parameters="$2"
-  local urlprefix="${2-$HD_WEBHOOK_URLPREFIX}"
+  local urlprefix="${3-$HD_WEBHOOK_URLPREFIX}"
 
   if [[ -z "$hook" ]]; then
     echo hook not specified >&2
