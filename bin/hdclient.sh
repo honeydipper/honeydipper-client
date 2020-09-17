@@ -124,6 +124,7 @@ function hdwebhook() {
   setupHoneydipper || return 1
 
   local hook="$1"
+  local parameters="$2"
   local urlprefix="${2-$HD_WEBHOOK_URLPREFIX}"
 
   if [[ -z "$hook" ]]; then
@@ -146,7 +147,7 @@ function hdwebhook() {
     export HD_WEBHOOK_RETURN="$(mktemp)"
   fi
 
-  export HD_WEBHOOK_STATUS_CODE="$(curl -s -o "$HD_WEBHOOK_RETURN" -w "%{http_code}" -H "Token: $HD_WEBHOOK_TOKEN" "$urlprefix/$hook?accept_uuid")"
+  export HD_WEBHOOK_STATUS_CODE="$(curl -s -o "$HD_WEBHOOK_RETURN" -w "%{http_code}" -H "Token: $HD_WEBHOOK_TOKEN" "$urlprefix/$hook?accept_uuid&$parameters")"
   local ret="$?"
 
   if [[ "$HD_WEBHOOK_STATUS_CODE" != "200" ]]; then
@@ -204,4 +205,33 @@ function hdwait() {
 
   export HD_SESSION_SUCCESS="$(echo "$JQ_RESULTS" | grep -c 'success')"
   export HD_SESSION_FAILURE_ERROR="$(echo "$JQ_RESULTS" | grep -c 'failure\|error')"
+}
+
+function hdwebhook_wait() {
+  hdwebhook "$@"
+  hdwait
+  (( $HD_SESSION_FAILURE_ERROR == 0 ))
+}
+
+function hduse() {
+  env="$1"
+  if [[ -z "$env" ]]; then
+    echo please specify an environment >&2
+    return 1
+  fi
+
+  if [[ ! -f ~/.config/honeydipper."$env" ]]; then
+    echo the environment is not defined, "~/.config/honeydipper.$env" is missing >&2
+    return 1
+  fi
+
+  cp ~/.config/honeydipper."$env" ~/.config/honeydipper
+  echo "$env" > ~/.config/honeydipper_env
+}
+
+function hdenv() {
+  ls ~/.config/honeydipper.* |
+    xargs -L1 basename |
+    cut -d'.' -f2 |
+    awk '{if ($1 == "'$(<~/.config/honeydipper_env)'") { print "*",$1; } else {print " ",$1; }}'
 }
