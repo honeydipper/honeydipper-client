@@ -58,8 +58,16 @@
 #######################################################
 
 function setupHoneydipper() {
-  if [[ -z "$SKIP_HONEYDIPPER_CONFIG" ]] && [[ -f ~/.config/honeydipper ]]; then
-    source ~/.config/honeydipper
+  if [[ -z "$SKIP_HONEYDIPPER_CONFIG" ]] && [[ -f ~/.config/honeydipper/env ]]; then
+    unset HD_WEBHOOK_URLPREFIX
+    unset HD_API_URLPREFIX
+    unset HD_API_TOKEN
+    unset HD_WEBHOOK_TOKEN
+    unset HD_USER_NAME
+    unset HD_USER_PASS
+    unset HD_USE_GCLOUD_IAP
+    unset HD_GCLOUD_IAP_AUDIENCE
+    source ~/.config/honeydipper/env
   fi
 
   if ! [[ -x "$(command -v curl)" ]]; then
@@ -226,26 +234,26 @@ function hdwebhook_wait() {
 }
 
 function hduse() {
-  env="$1"
-  if [[ -z "$env" ]]; then
+  name="$1"
+  if [[ -z "$name" ]]; then
     echo please specify an environment >&2
     return 1
   fi
 
-  if [[ ! -f ~/.config/honeydipper."$env" ]]; then
-    echo the environment is not defined, "~/.config/honeydipper.$env" is missing >&2
+  if [[ ! -f ~/.config/honeydipper/envs/"$name" ]]; then
+    echo the environment is not defined, "~/.config/honeydipper/envs/$name" is missing >&2
     return 1
   fi
 
-  cp ~/.config/honeydipper."$env" ~/.config/honeydipper
-  echo "$env" > ~/.config/honeydipper_env
+  cp ~/.config/honeydipper/envs/"$name" ~/.config/honeydipper/env
+  echo "$name" > ~/.config/honeydipper/current
 }
 
 function hdenv() {
-  ls ~/.config/honeydipper.* |
+  ls ~/.config/honeydipper/envs/* |
     xargs -L1 basename |
     cut -d'.' -f2 |
-    awk '{if ($1 == "'$(<~/.config/honeydipper_env)'") { print "*",$1; } else {print " ",$1; }}'
+    awk '{if ($1 == "'$(<~/.config/honeydipper/current)'") { print "*",$1; } else {print " ",$1; }}'
 }
 
 function getFreePort() {
@@ -264,7 +272,7 @@ function getFreePort() {
 
 function getGoogleIAPToken() {
     local suffix="${HD_GCLOUD_IAP_AUDIENCE%%.*}"
-    local token_file="$HOME/.config/honeydipper_gcp_token.$suffix"
+    local token_file="$HOME/.config/honeydipper/runtime/gcp_token.$suffix"
 
     if [[ ! -f "$token_file" ]] || [[ -n "$(find "$token_file" -mmin +59)" ]] || ! jq -e '.id_token' "$token_file" > /dev/null; then
         fetchGoogleIAPTokenFile
@@ -282,8 +290,8 @@ function getGoogleIAPToken() {
 
 function fetchGoogleIAPTokenFile() {
     local suffix="${HD_GCLOUD_IAP_AUDIENCE%%.*}"
-    local token_file="$HOME/.config/honeydipper_gcp_token.$suffix"
-    local client_creds="$HOME/.config/honeydipper_gcp_creds.$suffix"
+    local token_file="$HOME/.config/honeydipper/runtime/gcp_token.$suffix"
+    local client_creds="$HOME/.config/honeydipper/creds/gcp.$suffix"
     local client_id="$(cat "$client_creds" | jq -r ".installed.client_id")"
     local client_secret="$(cat "$client_creds" | jq -r ".installed.client_secret")"
 
@@ -326,8 +334,8 @@ function fetchGoogleIAPTokenFile() {
 
 function refreshGoogleIAPTokenFile() {
     local suffix="${HD_GCLOUD_IAP_AUDIENCE%%.*}"
-    local token_file="$HOME/.config/honeydipper_gcp_token.$suffix"
-    local client_creds="$HOME/.config/honeydipper_gcp_creds.$suffix"
+    local token_file="$HOME/.config/honeydipper/runtime/gcp_token.$suffix"
+    local client_creds="$HOME/.config/honeydipper/creds/gcp.$suffix"
     local client_id="$(cat "$client_creds" | jq -r ".installed.client_id")"
     local client_secret="$(cat "$client_creds" | jq -r ".installed.client_secret")"
     local refresh_token="$(jq -r ".refresh_token" "$token_file")"
@@ -343,5 +351,5 @@ function refreshGoogleIAPTokenFile() {
 }
 
 function hdwipe() {
-    rm -f $HOME/.config/honeydipper_gcp_token.*
+    rm -f $HOME/.config/honeydipper/runtime/*
 }
