@@ -89,8 +89,8 @@ function hdget() {
     return 1
   fi
 
-  if [[ -z "$HD_API_TOKEN" ]] && [[ -z "$HD_USER_NAME" ]]; then
-    echo HD_API_TOKEN or HD_USER_NAME not specified >&2
+  if [[ -z "$HD_API_TOKEN" ]] && [[ -z "$HD_USER_NAME" ]] && [[ "$HD_USE_GCLOUD_IAP" != "true" ]]; then
+    echo HD_API_TOKEN, HD_USER_NAME not specified or HD_USE_GCLOUD_IAP not true >&2
     return 1
   fi
 
@@ -99,7 +99,19 @@ function hdget() {
     return 1
   fi
 
-  if [[ -n "$HD_USER_NAME" ]]; then
+  if [[ "$HD_USE_GCLOUD_IAP" == "true" ]] && [[ -z "$HD_GCLOUD_IAP_AUDIENCE" ]]; then
+    echo HD_GCLOUD_IAP_AUDIENCE not specified >&2
+    return 1
+  fi
+
+  if [[ "$HD_USE_GCLOUD_IAP" == "true" ]]; then
+    local token="$(getGoogleIAPToken)"
+    if [[ "$token" == "null" ]]; then
+      echo Unable to get IAP token >&2
+      return 1
+    fi
+    local auth=( "-H" "Authorization: bearer $token" )
+  elif [[ -n "$HD_USER_NAME" ]]; then
     local auth=( "-u" "$HD_USER_NAME:$HD_USER_PASS" )
   else
     local auth=( "-H" "Authorization: bearer $HD_API_TOKEN" )
@@ -234,4 +246,102 @@ function hdenv() {
     xargs -L1 basename |
     cut -d'.' -f2 |
     awk '{if ($1 == "'$(<~/.config/honeydipper_env)'") { print "*",$1; } else {print " ",$1; }}'
+}
+
+function getFreePort() {
+    local used_ports="$( netstat -naf inet|grep '^tcp' | awk '{print $4;}' | awk -F. '{print $NF;}' | grep -v '*' | sort -u )"
+    local -i port=3000
+    local -i last_port=65000
+    while [[ "$port" -le "$last_port" ]]; do
+        if echo "$used_ports" | grep -q -w "$port"; then
+            port="$(( port + 1 ))"
+        else
+            echo "$port"
+            return
+        fi
+    done
+}
+
+function getGoogleIAPToken() {
+    local suffix="${HD_GCLOUD_IAP_AUDIENCE%%.*}"
+    local token_file="$HOME/.config/honeydipper_gcp_token.$suffix"
+
+    if [[ ! -f "$token_file" ]] || [[ -n "$(find "$token_file" -mmin +59)" ]] || ! jq -e '.id_token' "$token_file" > /dev/null; then
+        fetchGoogleIAPTokenFile
+    elif [[ -n "$(find "$token_file" -mmin +5)" ]]; then
+        if ! jq -e '.refresh_token' "$token_file" > /dev/null; then
+            fetchGoogleIAPTokenFile
+        else
+            refreshGoogleIAPTokenFile
+        fi
+    fi
+    if ! jq -e -r ".id_token" "$token_file"; then
+        cat "$token_file" >&2
+    fi
+}
+
+function fetchGoogleIAPTokenFile() {
+    local suffix="${HD_GCLOUD_IAP_AUDIENCE%%.*}"
+    local token_file="$HOME/.config/honeydipper_gcp_token.$suffix"
+    local client_creds="$HOME/.config/honeydipper_gcp_creds.$suffix"
+    local client_id="$(cat "$client_creds" | jq -r ".installed.client_id")"
+    local client_secret="$(cat "$client_creds" | jq -r ".installed.client_secret")"
+
+    local io="$(mktemp -u)"
+    mkfifo $io
+
+    local port="$( getFreePort )"
+    if [[ -z "$port" ]]; then
+        echo  "Can't find a free local tcp port." >&2
+        return 1
+    fi
+
+    (
+        cat $io |
+        nc -l $port |
+        (
+            local g url v
+            read -r g url v
+            local urltail="${url#*code=}"
+            local code="${urltail%%\&*}"
+            echo -e "HTTP/1.1 302\r\nLocation: https://honeydipper.io\r\n\r" > $io
+            curl -s \
+                --data client_id="$client_id" \
+                --data client_secret="$client_secret" \
+                --data code="$code" \
+                --data audience="$HD_GCLOUD_IAP_AUDIENCE" \
+                --data redirect_uri="http://localhost:$port" \
+                --data grant_type=authorization_code \
+                https://oauth2.googleapis.com/token
+        ) > "$token_file"
+    ) &
+    pid="$!"
+    trap "rm -f $io; pkill -P $pid; kill $pid; exit" 1 2 3 6 15
+
+    open "https://accounts.google.com/o/oauth2/v2/auth?client_id=${client_id}&response_type=code&scope=openid%20email&access_type=offline&redirect_uri=http://localhost:${port}&cred_ref=true"
+
+    wait "$pid"
+    rm -f "$io"
+}
+
+function refreshGoogleIAPTokenFile() {
+    local suffix="${HD_GCLOUD_IAP_AUDIENCE%%.*}"
+    local token_file="$HOME/.config/honeydipper_gcp_token.$suffix"
+    local client_creds="$HOME/.config/honeydipper_gcp_creds.$suffix"
+    local client_id="$(cat "$client_creds" | jq -r ".installed.client_id")"
+    local client_secret="$(cat "$client_creds" | jq -r ".installed.client_secret")"
+    local refresh_token="$(jq -r ".refresh_token" "$token_file")"
+
+    curl -s \
+        --data client_id="$client_id" \
+        --data client_secret="$client_secret" \
+        --data refresh_token="$refresh_token" \
+        --data audience="$HD_GCLOUD_IAP_AUDIENCE" \
+        --data grant_type=refresh_token \
+        https://oauth2.googleapis.com/token |
+    jq '. += {"refresh_token": "'"$refresh_token"'"}' > "$token_file"
+}
+
+function hdwipe() {
+    rm -f $HOME/.config/honeydipper_gcp_token.*
 }
