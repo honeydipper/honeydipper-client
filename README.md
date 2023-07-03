@@ -8,24 +8,58 @@ This script makes it easy to send a webhook request to Honeydipper, or wait for 
 
 ### Install
 
-Just download the script and place it somewhere in your `PATH`. The script requires `curl` and `jq`, make sure you have them installed.
+Just download the script and place it somewhere in your `PATH`. The script
+requires `curl` and `jq`, make sure you have them installed. If you use Google
+IAP to secure your API, you will also need to have `gcloud` installed.
 
 ```bash
-curl -s https://raw.githubusercontent.com/honeydipper/honeydipper-client/v0.0.2/bin/hdclient.sh > hdclient.sh
+curl -s https://raw.githubusercontent.com/honeydipper/honeydipper-client/v0.1.0/bin/hdclient.sh > hdclient.sh
 ```
 
 ### Config
 
-Create a file named `honeydipper` under the directory `~/.config`, and put the url and tokens in the config files like below.
+The script supports switching back and forth between multiple
+environments. To easily configure the access to your Honeydipper
+daemons, place a file for each of your environment under `~/.config/honeydipper/envs`.
+Each file should set a few environment variables.
 
+Below are required
 ```bash
 HD_WEBHOOK_URLPREFIX="https://dipper-webhook.myhoneydipper.com"
 HD_API_URLPREFIX="https://dipper-api.myhoneydipper.com/api"
-HD_API_TOKEN="xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxxx"
-HD_WEBHOOK_TOKEN="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-You can also skip this step if you have other means to inject environment variables to your shell.
+If you are given an API token, you can specify it here.
+```bash
+HD_API_TOKEN="< api token >"
+```
+
+Alternatively, you can use `HD_USER_NAME` and `HD_USER_PASS` instead of
+`HD_API_TOKEN` to access the APIs, if you are given a username/password
+credential.
+
+If your deamon is protected by Google IAP. You can skip the tokens or
+username/password, and set below environment variables.
+```bash
+HD_USE_GCLOUD_IAP=true
+HD_GCLOUD_IAP_AUDIENCE=<client_id credential for your backend>.apps.googleusercontent.com
+```
+
+To properly authenticate with IAP, You will need to have another desktop app
+client id credential in the same GCP project where you daemon is running, and
+download the client ID json file to your local and store it as
+```
+~/.config/honeydipper/creds/gcp.<backend client_id_credential without the .app.googleusercontent.com>
+```
+
+Be careful, use the backend client ID credential name, not the desktop app
+client ID credential name in the file name.
+
+If you are granted a webhook token, you can specify it this way.
+```bash
+HD_WEBHOOK_TOKEN="< webhook token >"
+```
+
 
 ### Send a webhook request
 
@@ -72,4 +106,12 @@ $ hdget events
   }
 }
 $
+```
+
+### Removing all cached oauth tokens
+
+Run below command after source in the script.
+
+```bash
+hdwipe
 ```
