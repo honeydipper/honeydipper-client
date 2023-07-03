@@ -3,7 +3,7 @@
 
 #######################################################
 # 
-# Copyright 2019 Honey Science Corporation
+# Copyright 2023 Honey Science Corporation
 # 
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -22,21 +22,50 @@
 # The best way to make the functions available is to
 # source in this file from your shell's rc file.
 #
-# To easily configure the access to your Honeydipper
-# daemon, place a file named honeydipper in your home
-# directory under .config, should include following
-# environment variables
+# The script supports switching back and forth between multiple
+# environments. To easily configure the access to your Honeydipper
+# daemons, place a file for each of your environment under ~/.config/honeydipper/envs.
+# Each file should set a few environment variables.
 # 
 # HD_WEBHOOK_URLPREFIX="< webhook prefix e.g. https://dipper-webhook.myhoneydipper.com >"
 # HD_API_URLPREFIX="< api prefix e.g. https://dipper-api.myhoneydipper.com >"
-# HD_API_TOKEN="< api token >"
-# HD_WEBHOOK_TOKEN="< webhook token >"
 #
-# Alternatively, you can use HD_USER_NAME and HD_USER_PASS
-# instead of HD_API_TOKEN.
+# If you are given an API token, you can specify it here.
+# HD_API_TOKEN="< api token >"
+#
+# Alternatively, you can use HD_USER_NAME and HD_USER_PASS instead of
+# HD_API_TOKEN to access the APIs, if you are given a username/password
+# credential.
+#
+# If your deamon is protected by Google IAP. You can skip the tokens or
+# username/password, and set below environment variables.
+#
+# HD_USE_GCLOUD_IAP=true
+# HD_GCLOUD_IAP_AUDIENCE=<client_id credential for your backend>.apps.googleusercontent.com
+#
+# To properly authenticate with IAP, You will need to have another desktop app
+# client id credential in the same GCP project where you daemon is running, and
+# download the client ID json file to your local and store it as
+# ~/.config/honeydipper/creds/gcp.<backend client_id_credential without the .app.googleusercontent.com>
+#
+# Be careful, use the backend client ID credential name, not the desktop app
+# client ID credential name in the file name.
+#
+# If you are granted a webhook token, you can specify it this way.
+# HD_WEBHOOK_TOKEN="< webhook token >"
 #
 # examples:
 #
+# $ hdenv
+#
+#     this command lists all the configured environments, and the current
+#     environment will be prefixed with a start "*".
+#
+# $ hduse <env>
+#
+#     this command sets the current environment. You have to set a current
+#     environment before you can run any other commands.
+#     
 # $ hdget events
 #
 #     this will list all the events currently executing
@@ -44,8 +73,8 @@
 #
 # $ hdwebhook mywebhook/test
 #
-#     this will send a webhook request with required
-#     such as https://dipper-webhook.myhoneydipper.com/mywebhook/test
+#     this will send a webhook request with the configured webhook token.
+#     For example, https://dipper-webhook.myhoneydipper.com/mywebhook/test
 #     The eventID will be stored in environment variable
 #     HD_EVENT_ID.
 #
@@ -54,6 +83,11 @@
 #     this will wait for the event $HD_EVENT_ID to finish
 #     executing the workflows. check the results with
 #     $HD_SESSION_SUCCESS and $HD_SESSION_FAILURE_ERROR
+#
+# $ hdwipe
+#
+#     this will remove all the existing oauth tokens and a fresh gcloud IAP
+#     auth will happen next time you send API requests.
 #
 #######################################################
 
